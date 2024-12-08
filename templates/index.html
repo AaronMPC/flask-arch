@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temperature Control with Fan System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div id="container">
+        <div id="timer-display">
+            <div id="timer-title">Timer</div>
+            <div id="timer-value">00:00:00</div>
+            <div id="timer-progress-container">
+                <progress id="timer-progress" value="0" max="100"></progress>
+            </div>
+            <button class="timer-button" id="start-2hr">Start 2 Hours</button>
+            <button class="timer-button" id="start-30min">Start 30 Minutes</button>
+            <button class="stop-button" id="stop-timer">Stop Timer</button>
+        </div>
+
+        <div id="temperature-display">
+            <div id="temperature-title">Current Temperature</div>
+            <div id="temperature-value">0.00 °C</div>
+        </div>
+
+        <div id="fan-display">
+            <div id="fan-title">Fan Speed</div>
+            <div id="fan-speed-value">0%</div>
+            <div id="fan-progress-container">
+                <progress id="fan-progress" value="0" max="100"></progress>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTemp = 0;
+        let remainingTime;
+        let timerInterval;
+        let fluctuationInterval;
+        let fluctuationRange = { min: 50, max: 70 };
+        let fanSpeed = 0;
+
+        function updateTemperature() {
+            document.getElementById('temperature-value').innerText = `${currentTemp.toFixed(2)} °C`;
+        }
+
+        function updateFanSpeed() {
+            document.getElementById('fan-speed-value').innerText = `${fanSpeed.toFixed(2)}%`;
+            document.getElementById('fan-progress').value = fanSpeed;
+        }
+
+        function updateTimerProgress() {
+            const progressValue = (1 - remainingTime / (2 * 60 * 60)) * 100;
+            document.getElementById('timer-progress').value = progressValue;
+        }
+
+        function startFluctuation(min, max) {
+            if (fluctuationInterval) clearInterval(fluctuationInterval);
+
+            fluctuationInterval = setInterval(() => {
+                if (remainingTime <= 0) {
+                    clearInterval(fluctuationInterval);
+                } else {
+                    currentTemp = Math.random() * (max - min) + min;
+                    adjustFanSpeed(currentTemp, min, max);
+                    updateTemperature();
+                }
+            }, 2000);
+        }
+
+        function adjustFanSpeed(temp, min, max) {
+            const fanSpeedPercentage = Math.max(0, Math.min(100, 100 - ((temp - min) / (max - min)) * 100));
+            fanSpeed = fanSpeedPercentage;
+            updateFanSpeed();
+        }
+
+        function startTimer(duration, min, max) {
+            remainingTime = duration;
+            if (timerInterval) clearInterval(timerInterval);
+
+            timerInterval = setInterval(() => {
+                let hours = Math.floor(remainingTime / 3600);
+                let minutes = Math.floor((remainingTime % 3600) / 60);
+                let seconds = remainingTime % 60;
+
+                document.getElementById('timer-value').innerText =
+                    `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+                updateTimerProgress();
+
+                if (remainingTime <= 0) {
+                    clearInterval(timerInterval);
+                    alert("Timer finished!");
+                } else {
+                    remainingTime--;
+                }
+            }, 1000);
+
+            startFluctuation(min, max);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            clearInterval(fluctuationInterval);
+            currentTemp = 0;
+            fanSpeed = 0;
+            document.getElementById('temperature-value').innerText = "0.00 °C";
+            document.getElementById('fan-speed-value').innerText = "0%";
+            document.getElementById('timer-value').innerText = "00:00:00";
+            document.getElementById('timer-progress').value = 0;
+            document.getElementById('fan-progress').value = 0;
+        }
+
+        document.getElementById('start-2hr').addEventListener('click', () => {
+            fluctuationRange = { min: 50, max: 70 };
+            fetch(`/start_timer/7200/${fluctuationRange.min}/${fluctuationRange.max}`)
+                .then(response => response.json())
+                .then(data => startTimer(2 * 60 * 60, fluctuationRange.min, fluctuationRange.max));
+        });
+
+        document.getElementById('start-30min').addEventListener('click', () => {
+            fluctuationRange = { min: 80, max: 100 };
+            fetch(`/start_timer/1800/${fluctuationRange.min}/${fluctuationRange.max}`)
+                .then(response => response.json())
+                .then(data => startTimer(30 * 60, fluctuationRange.min, fluctuationRange.max));
+        });
+
+        document.getElementById('stop-timer').addEventListener('click', () => {
+            fetch('/stop_timer')
+                .then(response => response.json())
+                .then(data => stopTimer());
+        });
+    </script>
+</body>
+</html>
